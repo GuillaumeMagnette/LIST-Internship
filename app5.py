@@ -51,13 +51,7 @@ nbr_newts = 6
 
 
 app.layout = html.Div([
-    #html.Label('Dropdown'),
-    #dcc.Dropdown(
-    #    id='dropdown_areas',
-    #    options=[{'label': label, 'value': label} for label in os.listdir(cropped_path)],
-    #    value=os.listdir(cropped_path)[0]
-    #),
-    #hmtl.Div(dcc.Markdown(f""))
+
     html.Div(
     id='dropdown_areas_parent',
     children=[
@@ -69,14 +63,10 @@ app.layout = html.Div([
     ]
     ),
     
-    #dcc.Dropdown(
-    #    id='dropdown_areas_updated',
+
     dcc.Markdown(id='nbr_newts'),
 
 
-   
-
-    #dcc.Markdown(f"the selected path is {final_path}"),
     dcc.Upload(
     id='upload_prediction',
     children=html.Div([
@@ -99,6 +89,19 @@ app.layout = html.Div([
 ),
 
 dcc.Markdown(id = 'output_uploaded'), 
+
+html.Div(
+    id='dropdown_areas_parent_multi',
+    children=[
+        dcc.Dropdown(
+            id='dropdown_areas_multi',
+            options=[{'label': label, 'value': label} for label in os.listdir(cropped_path)],
+            #value=os.listdir(cropped_path)[0]
+            multi=True,
+        )
+    ]
+),
+
 ])
 
 
@@ -128,8 +131,8 @@ def update_output(zip_file):
         shutil.rmtree(img_path)
     zip_obj.extractall(img_path)
     
-    if(not os.path.exists(cropped_path)):
-        os.makedirs(cropped_path)
+    #if(not os.path.exists(cropped_path)):
+    #    os.makedirs(cropped_path)
 
     create_area(img_path,cropped_path)
 
@@ -137,16 +140,49 @@ def update_output(zip_file):
 
     preprocess_newts(img_path,aug_path,new_cropped_path,input_shape)
 
-    for area in os.listdir(cropped_path):
-        nbr_newts = regroupSameNewts(cropped_path + '/' + area, new_cropped_path +'/' + area)
+    nbr_newts = []
     
+    for area in os.listdir(new_cropped_path):
+        nbr_newts.append(regroupSameNewts(cropped_path + '/' + area, new_cropped_path +'/' + area))
+    
+    shutil.rmtree(img_path)
+    shutil.rmtree(aug_path)
+    shutil.rmtree(new_cropped_path)
+    
+    list_area = os.listdir(cropped_path)
+    results = "There are at the moment :"
+    for area in list_area:
+        area_path = cropped_path + '/' + area
+        for nbr_newt in os.listdir(area_path):
+            results += f" {nbr_newt} in the area called {area}"
 
     markdown = ''' 
     ### newts processed '''
     return f"There are at the moment {nbr_newts} different newts in the database"
     #return markdown
     
- 
+@app.callback(Output('nbr_newts', 'children'),
+             [Input('dropdown_areas_dependant', 'value')])
+def compareSimilarAreas(value):
+    
+    new_cropped_path = f"{cropped_path}/"
+
+    for area in value:
+        new_cropped_path += f"{value}_"
+    if(not os.path.exists(new_cropped_path)):
+        os.makedirs(new_cropped_path)
+
+    areas = os.listdir(cropped_path)
+
+    for area in areas:
+        if (area in value):
+            area_path = cropped_path + '/' + area
+            shutil.copy(area_path,new_cropped_path)
+    
+    nbr_newts = regroupSimilarAreas(new_cropped_path)
+
+    return nbr_newts
+
 
 @app.callback(Output('nbr_newts', 'children'),
              [Input('dropdown_areas', 'value')])
@@ -172,5 +208,6 @@ def update_options(n_clicks):
     #Output('message_updated')
     #Input('upload_prediction', 'contents')
 #def update_area()
+
 if __name__ == '__main__':
     app.run_server(debug=True)

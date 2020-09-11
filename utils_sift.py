@@ -462,26 +462,27 @@ def regroupSameNewtsInit(cropped_path):
   return esti_nbr_newts
 
 
-def compareTwoAreas(cropped_path1,cropped_path2):
+def regroupSimilarAreas(new_cropped_path):
 
   #nbr_new_diff_newts = regroupSameNewtsInit(new_cropped_path)
 
   diff_newts_ids = []
   same_newts_ids = []
   i = 0
-  list_dir = os.listdir(cropped_path1)
-  list_dir2 = os.listdir(cropped_path2)
+  
+  list_dir = os.listdir(new_cropped_path)
+  #list_dir2 = os.listdir(cropped_path2)
 
   for class_path1 in list_dir:
     j = 0
-    for class_path2 in list_dir2:
-  
-      img_path1 = cropped_path1 + '/' + class_path1
-      img_path2 = cropped_path2 + '/' + class_path2
-      if compareTwoNewts(img_path1,img_path2,3):
-        same_newts_ids.append((i,j))
-      else:
-        diff_newts_ids.append((i,j))
+    for class_path2 in list_dir:
+      if(j > i):
+        img_path1 = cropped_path1 + '/' + class_path1
+        img_path2 = cropped_path2 + '/' + class_path2
+        if compareTwoNewts(img_path1,img_path2,3):
+          same_newts_ids.append((i,j))
+        else:
+          diff_newts_ids.append((i,j))
       j += 1
     i += 1
 
@@ -492,9 +493,16 @@ def compareTwoAreas(cropped_path1,cropped_path2):
       ids_to_remove.append(same_newts_ids[i][1])
     
   print(ids_to_remove)
+  
 
+  for id in ids_to_remove:
+    shutil.rmtree(new_cropped_path + '/' + list_dir[id] )
+
+  new_list_dir = len(os.listdir(new_cropped_path))
   esti_nbr_newts = len(new_list_dir)
 
+  return esti_nbr_newts
+  
 #nbr_newts = regroupSameNewts('cropDataset')
 
 def regroupSameNewts(cropped_path,new_cropped_path):
