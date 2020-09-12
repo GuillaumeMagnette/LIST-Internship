@@ -1,4 +1,5 @@
 import tensorflow as tf
+import hdbscan
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras import backend
@@ -116,6 +117,16 @@ from skimage import data, img_as_float
 from skimage import exposure
 from scipy.ndimage import shift
 
+
+from sklearn.decomposition import PCA
+from sklearn.metrics import calinski_harabasz_score, silhouette_score, davies_bouldin_score, silhouette_samples
+import seaborn as sns
+
+import umap
+import hdbscan
+import sklearn.cluster as cluster
+from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score
+from ax import optimize
 
 def random_saturation(rgb, show_result = False):
   """ Modify randomly the saturation of the input image """
@@ -1433,7 +1444,7 @@ img_path = 'ds_final_unet_lite/content/ds_final/train'
 new_path = 'newt_images'
 input_shape = (75,30,3)
 #threshold = 300, threshold_new = 400
-addToDataset(img_path, new_path, model, unet, input_shape)
+#addToDataset(img_path, new_path, model, unet, input_shape)
 
 
 

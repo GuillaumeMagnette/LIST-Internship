@@ -101,6 +101,8 @@ html.Div(
         )
     ]
 ),
+html.Button('Associate the areas', id='submit-val', n_clicks=0),
+dcc.Markdown(id = 'nbr_newts_grouped'),
 
 ])
 
@@ -161,27 +163,42 @@ def update_output(zip_file):
     return f"There are at the moment {nbr_newts} different newts in the database"
     #return markdown
     
-@app.callback(Output('nbr_newts', 'children'),
-             [Input('dropdown_areas_dependant', 'value')])
-def compareSimilarAreas(value):
+@app.callback(Output('nbr_newts_grouped', 'children'),
+              [Input('submit-val', 'n_clicks')],
+             [State('dropdown_areas_multi', 'value')])
+def compareSimilarAreas(n_clicks, value):
     
+  if not n_clicks:
+      raise dash.exceptions.PreventUpdate()
+  changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
+
+  if ('submit-val' in changed_id):
+
     new_cropped_path = f"{cropped_path}/"
 
     for area in value:
-        new_cropped_path += f"{value}_"
+        new_cropped_path += f"{area}_"
+
+    new_cropped_path = new_cropped_path[:-1]
     if(not os.path.exists(new_cropped_path)):
         os.makedirs(new_cropped_path)
 
-    areas = os.listdir(cropped_path)
+        areas = os.listdir(cropped_path)
 
-    for area in areas:
-        if (area in value):
-            area_path = cropped_path + '/' + area
-            shutil.copy(area_path,new_cropped_path)
+        for area in areas:
+            if (area in value):
+                area_path = cropped_path + '/' + area
+                for newts_name in os.listdir(area_path):
+                    newts_path = area_path + '/' + newts_name
+                    print(newts_path)
+                    print(new_cropped_path)
+                    shutil.copytree(newts_path,new_cropped_path + '/' + newts_name)
     
-    nbr_newts = regroupSimilarAreas(new_cropped_path)
+        nbr_newts = regroupSimilarAreas(new_cropped_path)
 
-    return nbr_newts
+    else:
+        nbr_newts = len(os.listdir(new_cropped_path))
+  return f"Right now, there are : {nbr_newts} different newts in this area that were 'photo-captured'"
 
 
 @app.callback(Output('nbr_newts', 'children'),
@@ -204,6 +221,27 @@ def update_options(n_clicks):
         raise dash.exceptions.PreventUpdate()
     options = [{'label': label, 'value': label} for label in os.listdir(cropped_path)]
     return options
+
+@app.callback(
+    Output("dropdown_areas_multi", "options"),
+    [Input('dropdown_areas_parent_multi', 'n_clicks')],
+    #Input('area_created', 'children')],
+)
+def update_options(n_clicks):
+    if not n_clicks:
+        raise dash.exceptions.PreventUpdate()
+    
+    options = [{'label': label, 'value': label} for label in os.listdir(cropped_path)]
+    return options
+
+#@app.callback(Output("dropdown_areas_multi", "value"),
+#              Input("submit_val", "n_clicks"))
+#def submit_area_grouped(n_clicks):
+#    if not n_clicks:
+#        raise dash.exceptions.PreventUpdate()
+
+#    return
+
 
     #Output('message_updated')
     #Input('upload_prediction', 'contents')
