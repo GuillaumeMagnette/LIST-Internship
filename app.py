@@ -12,21 +12,7 @@ import io
 import base64
 import json
 
-#Unet = tf.keras.models.load_model('my_model_Unet')
 
-#print(new_model)
-
-#file_path = 'images/Bascha_P01_T01_K04_F_Adult_4240_20190330204648.jpg'
-#input_shape = (75,30,3)
-#image = preprocess_images(file_path)
-#image = np.resize(image, (128,128,3))
-#plt.imsave('images/augNewt.jpg',image/255)
-#image_extracted = np.reshape(image_extracted, (128,128,3))
-#image_extracted = extract_image_unet('images/augNewt.jpg', Unet)
-
-#plt.imsave('images/augNewtExtracted.jpg',image_extracted)
-#plt.imshow(image)
-#plt.show()
 
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -34,6 +20,7 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 #app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
+""" Folder creations """
 
 #img_path = 'baseDataset'
 img_path = 'newDataset'
@@ -49,7 +36,7 @@ if (not os.path.exists(cropped_path)):
 new_cropped_path = 'newCropDataset'
 nbr_newts = 6
 
-
+""" Here is the layout of the app """
 
 app.layout = html.Div([
 
@@ -157,15 +144,10 @@ html.Div([
 @app.callback([Output('output_uploaded', 'children'),
                Output("loading-output", "children")],
               [Input('upload_prediction', 'contents')])
-              #Input('area_selected', 'children')])
-              #[State('upload_prediction', 'filename'),
-              # State('upload_prediction', 'last_modified')])
 def update_output(zip_file):
-    #for content, name, date in zip(list_of_contents, list_of_names, list_of_dates):
-        # the content needs to be split. It contains the type and the real content
-    #print(type(zip_file))
-    #final_path = json.loads(final_path)
-    #print(final_path)
+
+    """ This method handles the zip files dropped by the user, the processing and the reidentification """
+
     if zip_file is None:
         raise dash.exceptions.PreventUpdate()
     
@@ -206,15 +188,16 @@ def update_output(zip_file):
         for nbr_newt in os.listdir(area_path):
             results += f" {nbr_newt} in the area called {area}"
 
-    markdown = ''' 
-    ### newts processed '''
+  
     return f"There are at the moment {nbr_newts} different newts in the database", f"Re-identification completed"
-    #return markdown
+    
 
 @app.callback(Output('message_del', 'children'),
               [Input('submit-del', 'n_clicks')],
              [State('dropdown_areas', 'value')])
 def deleteArea(n_clicks, value):
+    """ This method enables the user to delete an unwanted area """
+
     if not n_clicks or not value:
         raise dash.exceptions.PreventUpdate()
 
@@ -233,7 +216,8 @@ def deleteArea(n_clicks, value):
               [Input('submit-val', 'n_clicks')],
              [State('dropdown_areas_multi', 'value')])
 def compareSimilarAreas(n_clicks, value):
-    
+  """ This method determines whether some newts in an area have been also detected in a near area """
+
   if not n_clicks or not value:
       raise dash.exceptions.PreventUpdate()
   changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
@@ -271,9 +255,10 @@ def compareSimilarAreas(n_clicks, value):
 
 
 @app.callback(Output('nbr_newts', 'children'),
-               #Output('message_del', 'children')],
              [Input('dropdown_areas', 'value')])
 def select_area(value):
+    """ This method returns how many newts there are in the selected area """
+
     if value is None:
         raise dash.exceptions.PreventUpdate()
     final_path = cropped_path + '/' + str(value)
@@ -287,6 +272,8 @@ def select_area(value):
     #Input('area_created', 'children')],
 )
 def update_options(n_clicks):
+    """ This method updates the dropdown containing the different names of areas, as new ones are added """
+
     if not n_clicks:
         raise dash.exceptions.PreventUpdate()
     options = [{'label': label, 'value': label} for label in os.listdir(cropped_path)]
@@ -298,24 +285,13 @@ def update_options(n_clicks):
     #Input('area_created', 'children')],
 )
 def update_options(n_clicks):
+    """ This method updates the dropdown containing the different names of areas, as new 'meta-areas' are added """
     if not n_clicks:
         raise dash.exceptions.PreventUpdate()
     
     options = [{'label': label, 'value': label} for label in os.listdir(cropped_path)]
     return options
 
-#@app.callback(Output("dropdown_areas_multi", "value"),
-#              Input("submit_val", "n_clicks"))
-#def submit_area_grouped(n_clicks):
-#    if not n_clicks:
-#        raise dash.exceptions.PreventUpdate()
-
-#    return
-
-
-    #Output('message_updated')
-    #Input('upload_prediction', 'contents')
-#def update_area()
 
 if __name__ == '__main__':
     app.run_server(debug=True)
