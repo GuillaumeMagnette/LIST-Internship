@@ -142,14 +142,37 @@ def augmentationImages(img_path,img_aug_path):
           plt.imsave(augPath, image/255)
           k += 1
 
+def moveImages(img_path,img_moved_path):
+
+  """ Create a dataset where newts are put in folders. This method was used to test the segmentation without augmentation """
+
+  #!rm -rf /content/databaseAug #useful when running the method again for makedirs
+
+  img_list = os.listdir(img_path)
+
+  for img_name in img_list:
+      os.makedirs(img_moved_path + '/' + str(img_name[:-4]))
+
+
+  print("Creating the augmented dataset...")
+  # List all files in a directory using scandir()
+  basepath = img_path
+  with os.scandir(basepath) as images:
+    for im in images:
+
+        imagePath = basepath + '/' + im.name
+        print(imagePath)
+          
+        movePath = img_moved_path+'/'+ im.name[:-4] +'/' + im.name
+        shutil.move(imagePath,movePath)
+
+
 
 def create_mask(pred_mask):
+  """ Create a mask from the Unet output """
   pred_mask = tf.argmax(pred_mask, axis=-1)
   pred_mask = pred_mask[..., tf.newaxis]
   
-
-  #pred_mask = area_closing(pred_mask, area_threshold=4, connectivity=1, parent=None, tree_traverser=None)tf.keras.preprocessing.image.img_to_array
-
   return pred_mask[0]
 
 def extract_image_unet(img_path, model):
@@ -281,14 +304,132 @@ def extract_image_unet(img_path, model):
   
   return out
 
+def extract_image(img_path, model):
+  """ method used to extract the greatest region in the mask output of the 
+  Unet. This method was tested while removing the straightening part, and some geometrical transformation
+  """
+  image = plt.imread(img_path)
+  image = resize(image, (128,128,3), preserve_range=True)
+  pred_mask = create_mask(model.predict(image[tf.newaxis, ...]/255))
+    #pred_mask = img_as_float(pred_mask)
+    #print(pred_mask)
+    #print(np.max(pred_mask))
+    #print(tf.keras.preprocessing.image.img_to_array(pred_mask).shape)
+    #print(np.max(pred_mask[0]))
+    
+  pred_mask = tf.keras.preprocessing.image.img_to_array(pred_mask)
+    #print(np.max(pred_mask))
+   
+  selem = skimage.morphology.disk(6)
+  pred_mask = closing(np.squeeze(pred_mask*255), selem)
+  pred_mask = opening(np.squeeze(pred_mask), selem)
+
+  try:
+    labels_mask = measure.label(pred_mask) 
+  except ValueError:  #raised if `y` is empty.
+    print('no region found.')
+    return image
+   
+
+  try:
+    regions = measure.regionprops(labels_mask)
+  except ValueError:  #raised if `y` is empty.
+    print("no region found.")
+    return image
+  regions.sort(key=lambda x: x.area, reverse=True)
+
+  if len(regions) > 1:
+    for rg in regions[1:]:
+        labels_mask[rg.coords[:,0], rg.coords[:,1]] = 0
+
+
+  labels_mask[labels_mask!=0] = 1
+  pred_mask = labels_mask
+
+
+  pred_mask = resize(pred_mask, (150,30), preserve_range=True)
+  image = resize(image, (150,30,3), preserve_range=True)
+    ## findContours(查找轮廓)
+  cnts = cv2.findContours(pred_mask.astype('uint8'), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE,)[-2]
+
+    ## sorted by area(按照面积排序)
+  cnts = sorted(cnts, key=cv2.contourArea)
+
+    ## get the maximum's boundinRect(获取最大边缘的外接矩形)
+  try:
+    cnt = cnts[-1]
+  except IndexError:
+    print('no contour found')
+    return image
+
+
+  rect = cv2.minAreaRect(cnt)
+    #print("rect: {}".format(rect))
+
+  box = cv2.boxPoints(rect)
+  box = np.int0(box)
+
+  width = int(rect[1][0])
+  height = int(rect[1][1])
+
+  src_pts = box.astype("float32")
+  dst_pts = np.array([[0, height-1],
+                    [0, 0],
+                    [width-1, 0],
+                    [width-1, height-1]], dtype="float32")
+  M = cv2.getPerspectiveTransform(src_pts, dst_pts)
+  image_warped = cv2.warpPerspective(image, M, (width, height))
+  
+  warped_pred_mask = cv2.warpPerspective(pred_mask, M, (width, height))
+  
+
+  input_shape = (75,30,3)
+  height = input_shape[0]
+  width = input_shape[1]
+    #print(np.max(image))
+    #print(np.min(image))
+  
+  if (image_warped.shape[0] < image_warped.shape[1]):
+        #print(image_warped.shape[0])
+        #print(image_warped.shape[1])
+    #image = tf.image.resize(image, [width, height])
+      image_warped = resize(image_warped, (width, height),
+                       anti_aliasing=True, preserve_range=True)
+      warped_pred_mask = resize(warped_pred_mask, (width, height),
+                       anti_aliasing=False, preserve_range=True)      
+    #print("height < width")
+      image_warped = np.transpose(image_warped,(1,0,2))
+      
+      warped_pred_mask = np.transpose(warped_pred_mask,(1,0))
+      
+  
+  else:
+        #print(image_warped.shape[0])
+        #print(image_warped.shape[1])
+        #image = tf.image.resize(image, [height, width])
+      image_warped = resize(image_warped, (height, width),
+                     anti_aliasing=True,preserve_range=True)
+      
+      warped_pred_mask = resize(warped_pred_mask, (height, width),
+                     anti_aliasing=False, preserve_range=True)
+      
+       
+    
+        
+  #warped_pred_mask = resize(warped_pred_mask, (500,30, 1), preserve_range=True)
+
+  #skeleton = skeletonize(rescale_intensity(tf.keras.preprocessing.image.img_to_array(warped_pred_mask),in_range=(-1,1)))
+
+  #skeleton = resize(skeleton, (75,30,3), preserve_range=True)
+  
+  #out = 
+  return image_warped
 
 def extract_crop(ds_path, ds_final_path, input_shape, model):
   """ take the proper dataset created by augmentationImages and extract the newts
   by segmenting and cropping the pattern of interest """
    
-  #!rm -rf /content/ds_final
 
-    
 
   for class_name in os.listdir(ds_path):
       
@@ -298,45 +439,41 @@ def extract_crop(ds_path, ds_final_path, input_shape, model):
       dsFinalPath = ds_final_path + '/' + class_name
 
       for img_name in os.listdir(dsPath):
-
-        #if os.path.isfile(img_name):
         
           #print(img_name)
           imagePath = dsPath + '/' + img_name
           #print(imagePath)
           augPath = dsFinalPath + '/' + img_name
+
           if not (os.path.isdir(dsFinalPath)):
             os.makedirs(dsFinalPath)
           
           image = extract_image_unet(imagePath, model)
+
           try:
-          #plt.imshow(image)
-          #plt.show()
+          
 
             height = input_shape[0]
             width = input_shape[1]
-          #print(np.max(image))
-          #print(np.min(image))
+          
   
             if (image.shape[0] < image.shape[1]):
-            #image = tf.image.resize(image, [width, height])
+           
               image = resize(image, (width, height),
                        anti_aliasing=False)
-            #print("height < width")
+        
               image = np.transpose(image,(1,0,2))
             else:
-            #image = tf.image.resize(image, [height, width])
+           
               image = resize(image, (height, width),
                        anti_aliasing=False)
         
-          #image = tf.keras.preprocessing.image.img_to_array(image)
-         
-          #plt.imshow(image)
-          #plt.show()
             plt.imsave(augPath, image)
           
           except:
             pass  
+          
+          
 
 def preprocess_newts(dataset_path, img_aug_path, final_path, input_shape):
   """ take as input a folder of images, augment the images,
@@ -353,17 +490,21 @@ def preprocess_newts(dataset_path, img_aug_path, final_path, input_shape):
   for area_name in os.listdir(new_path):
     augmentationImages(new_path + '/' + area_name, img_aug_path + '/' + area_name)
   #Handle the pattern extraction and the straightening
-  Unet = tf.keras.models.load_model('unet')
+  Unet = tf.keras.models.load_model('unet_new')
   #print(Unet.summary())
   for area_name in os.listdir(img_aug_path):
     extract_crop(img_aug_path + '/' + area_name, final_path + '/' + area_name, input_shape, Unet)
 
-print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+
+#print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
 
 
 
 
 def compareTwoNewts(dir_path1,dir_path2,nbr_comparisons):
+  """ this method use the SIFT algorithm to find similarities between images. The result is averaged by 'nbr_comparisons' which 
+  represents how many images of the same specimen is used. The more comparisons there are, the more accurate the result will be,
+  but the more it will be time-consuming """
 
   img_dir1 = os.listdir(dir_path1)
   img_dir2 = os.listdir(dir_path2)
@@ -418,14 +559,12 @@ def compareTwoNewts(dir_path1,dir_path2,nbr_comparisons):
   
   return sameNewt
 
-#img_dir1 = 'cropDataset\Bascha_P01_T01_K04_F_Adult_4240_20190330204648'
-#img_dir2 = 'cropDataset\Bascha_P01_T01_K04_M_Adult_4230_20190330200044'
 
-#is_same_newt = compareTwoNewts(img_dir1, img_dir2,5)
-#print(is_same_newt)
 
 def regroupSameNewtsInit(cropped_path):
-  
+  """ This method use compareTwoNewts and iterate over the different specimens in a folder. 
+  It will delete images of newts that are present several times"""
+
   diff_newts_ids = []
   same_newts_ids = []
   i = 0
@@ -437,7 +576,7 @@ def regroupSameNewtsInit(cropped_path):
       if (j > i):
         img_path1 = cropped_path + '/' + class_path1
         img_path2 = cropped_path + '/' + class_path2
-        if compareTwoNewts(img_path1,img_path2,1):
+        if compareTwoNewts(img_path1,img_path2,3):
           same_newts_ids.append((i,j))
         else:
           diff_newts_ids.append((i,j))
@@ -464,7 +603,9 @@ def regroupSameNewtsInit(cropped_path):
 
 def regroupSimilarAreas(new_cropped_path):
 
-  #nbr_new_diff_newts = regroupSameNewtsInit(new_cropped_path)
+  """ This method handles the case when different areas are geographically close to each other, by grouping the newts and using 
+  compareTwoNewts """
+
 
   diff_newts_ids = []
   same_newts_ids = []
@@ -503,9 +644,12 @@ def regroupSimilarAreas(new_cropped_path):
 
   return esti_nbr_newts
   
-#nbr_newts = regroupSameNewts('cropDataset')
+
 
 def regroupSameNewts(cropped_path,new_cropped_path):
+
+  """ This method compare newts from different folders such as a new folder of newt deposited is compare with
+  the base folder containing all the previous newts """
 
   nbr_new_diff_newts = regroupSameNewtsInit(new_cropped_path)
 
@@ -521,7 +665,7 @@ def regroupSameNewts(cropped_path,new_cropped_path):
   
       img_path1 = cropped_path + '/' + class_path1
       img_path2 = new_cropped_path + '/' + class_path2
-      if compareTwoNewts(img_path1,img_path2,1):
+      if compareTwoNewts(img_path1,img_path2,3):
         same_newts_ids.append((i,j))
       else:
         diff_newts_ids.append((i,j))
@@ -541,16 +685,26 @@ def regroupSameNewts(cropped_path,new_cropped_path):
 
   new_list_dir = os.listdir(new_cropped_path)
   for i in range(len(new_list_dir)):
-    shutil.move(new_cropped_path + '/' + new_list_dir[i], cropped_path)
+    if (not os.path.exists(cropped_path + '/' + new_list_dir[i])):
+      shutil.move(new_cropped_path + '/' + new_list_dir[i], cropped_path)
+    else:
+      k = 1
+      while (os.path.exists(cropped_path + '/' + new_list_dir[i] + '_' + str(k))):
+        k += 1
+
+      os.rename(new_cropped_path + '/' + new_list_dir[i], new_cropped_path + '/' + new_list_dir[i] + '_' + str(k))
+      shutil.move(new_cropped_path + '/' + new_list_dir[i] + '_' + str(k), cropped_path)
 
   new_list_dir = os.listdir(cropped_path)
   esti_total_nbr_newts = len(new_list_dir)
 
   return esti_total_nbr_newts
 
-#def scanAreasNewts(cropped_path)
+
 
 def create_area(img_path, cropped_path):
+  """ This method look at the area contained in the name of the files, and separate the newts based on these areas """
+
   img_path = img_path + '/' + os.listdir(img_path)[0]
   list_area = []
   for img_name in os.listdir(img_path):
@@ -569,20 +723,3 @@ def create_area(img_path, cropped_path):
       shutil.move(img_path + '/' + newt_from_area, img_path + '/' + area)
 
 
-
-
-if __name__ == '__main__':
-  img_path = 'baseDataset'
-  new_base_path = 'newDataset'
-  aug_path = 'augDataset'
-  new_aug_path = 'newAugDataset'
-  cropped_path = 'cropDataset'
-  new_cropped_path = 'newCropDataset'
-
-  input_shape = (75,30,3)
-
-  preprocess_newts(img_path,aug_path,cropped_path,input_shape)
-  preprocess_newts(new_base_path,new_aug_path,new_cropped_path,input_shape)
-
-
-  nbr_newts = regroupSameNewts('cropDataset', 'newCropDataset')

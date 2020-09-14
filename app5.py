@@ -5,6 +5,7 @@ import dash
 from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
 import dash_html_components as html
+import dash_bootstrap_components as dbc
 
 from zipfile import ZipFile
 import io
@@ -30,8 +31,8 @@ import json
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-
+#app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 
 #img_path = 'baseDataset'
@@ -53,26 +54,24 @@ nbr_newts = 6
 app.layout = html.Div([
 
     html.Div(
-    id='dropdown_areas_parent',
-    children=[
-        dcc.Dropdown(
-            id='dropdown_areas',
-            options=[{'label': label, 'value': label} for label in os.listdir(cropped_path)],
-            #value=os.listdir(cropped_path)[0]
-        )
-    ]
+        className="app-header",
+        children=[
+            html.Div('Newt Re-identification', className="app-header--title")
+        ]
     ),
-    
-
-    dcc.Markdown(id='nbr_newts'),
-
-
+    html.Hr(),
+    html.Div([
+        html.H3('You can add here folders containing images of newts'),
+        html.H4("Filenames must begin by the area where the newts were photo-captured, followed by an underscore '_'"),
+        html.H5("Ex : Bascha_P01_T01_K07_M_20190421025319-180.jpg   This newt will be saved in the area : 'Bascha'")
+    ]),
+    html.Div([
     dcc.Upload(
     id='upload_prediction',
     children=html.Div([
         'Drag and Drop or ',
-        html.A('Select Files'),
-        ' New Predictions (*.zip)'
+        html.A('Select Folder'),
+        ' (*.zip)'
     ]),
     style={
         'width': '100%',
@@ -87,8 +86,51 @@ app.layout = html.Div([
     accept=".zip",
     multiple=False
 ),
+html.Div([
+    dbc.Spinner(html.Div(id="loading-output")),
+    dcc.Markdown(id = 'output_uploaded'),
+]),
 
-dcc.Markdown(id = 'output_uploaded'), 
+html.Hr(),
+
+html.Div([
+    html.H4("You can see here the list of the different areas detected in the filenames"),
+    html.H5("You can select areas to see the number of different newts photo-captured. Delete an area by clicking the button below")
+]),
+
+    html.Div(
+    id='dropdown_areas_parent',
+    children=[
+        dcc.Dropdown(
+            id='dropdown_areas',
+            options=[{'label': label, 'value': label} for label in os.listdir(cropped_path)],
+            #value=os.listdir(cropped_path)[0]
+        )
+    ]
+    ),
+
+
+ 
+]),
+
+html.Div(
+    [
+    
+    html.Button('Delete Area', id='submit-del', n_clicks=0),
+
+    dcc.Markdown(id='nbr_newts'),
+    dcc.Markdown(id='message_del'),
+
+    ]
+),
+
+html.Hr(),
+
+html.Div([
+    html.H4("You can select here areas geographically near one another"),
+    html.H5("This will create a new 'meta-area', and compare every newt of present in the areas selected")
+]),
+
 
 html.Div(
     id='dropdown_areas_parent_multi',
@@ -101,13 +143,19 @@ html.Div(
         )
     ]
 ),
-html.Button('Associate the areas', id='submit-val', n_clicks=0),
-dcc.Markdown(id = 'nbr_newts_grouped'),
+html.Button('Associate selected areas', id='submit-val', n_clicks=0),
+
+html.Div([
+    dbc.Spinner(html.Div(id="loading-regroup")),
+    dcc.Markdown(id = 'nbr_newts_grouped'),
+]),
+
 
 ])
 
 
-@app.callback(Output('output_uploaded', 'children'),
+@app.callback([Output('output_uploaded', 'children'),
+               Output("loading-output", "children")],
               [Input('upload_prediction', 'contents')])
               #Input('area_selected', 'children')])
               #[State('upload_prediction', 'filename'),
@@ -160,15 +208,33 @@ def update_output(zip_file):
 
     markdown = ''' 
     ### newts processed '''
-    return f"There are at the moment {nbr_newts} different newts in the database"
+    return f"There are at the moment {nbr_newts} different newts in the database", f"Re-identification completed"
     #return markdown
+
+@app.callback(Output('message_del', 'children'),
+              [Input('submit-del', 'n_clicks')],
+             [State('dropdown_areas', 'value')])
+def deleteArea(n_clicks, value):
+    if not n_clicks or not value:
+        raise dash.exceptions.PreventUpdate()
+
+    changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
+
+    if ('submit-del' in changed_id):
+        area_path = cropped_path + '/' + value
+        shutil.rmtree(area_path)
+
+        return f"Area called {value} has been succesfully deleted"
     
-@app.callback(Output('nbr_newts_grouped', 'children'),
+
+    
+@app.callback([Output('nbr_newts_grouped', 'children'),
+               Output("loading-regroup", "children")],
               [Input('submit-val', 'n_clicks')],
              [State('dropdown_areas_multi', 'value')])
 def compareSimilarAreas(n_clicks, value):
     
-  if not n_clicks:
+  if not n_clicks or not value:
       raise dash.exceptions.PreventUpdate()
   changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
 
@@ -192,24 +258,28 @@ def compareSimilarAreas(n_clicks, value):
                     newts_path = area_path + '/' + newts_name
                     print(newts_path)
                     print(new_cropped_path)
-                    shutil.copytree(newts_path,new_cropped_path + '/' + newts_name)
+                    if (not os.path.exists(new_cropped_path + '/' + newts_name)):
+                        shutil.copytree(newts_path,new_cropped_path + '/' + newts_name)
+                
+                    
     
         nbr_newts = regroupSimilarAreas(new_cropped_path)
 
     else:
         nbr_newts = len(os.listdir(new_cropped_path))
-  return f"Right now, there are : {nbr_newts} different newts in this area that were 'photo-captured'"
+  return f"Right now, there are : {nbr_newts} different newts in this area that were 'photo-captured'", f"Regrouping completed"
 
 
 @app.callback(Output('nbr_newts', 'children'),
+               #Output('message_del', 'children')],
              [Input('dropdown_areas', 'value')])
 def select_area(value):
     if value is None:
         raise dash.exceptions.PreventUpdate()
     final_path = cropped_path + '/' + str(value)
     print(f"area selected : {value}")
-
-    return f"Right now, there are : {len(os.listdir(final_path))} different newts in this area that were 'photo-captured'"
+    message = f"Right now, there are : {len(os.listdir(final_path))} different newts in {value} that were 'photo-captured'"
+    return message
 
 @app.callback(
     Output("dropdown_areas", "options"),
