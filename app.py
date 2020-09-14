@@ -251,7 +251,7 @@ def compareSimilarAreas(n_clicks, value):
 
     else:
         nbr_newts = len(os.listdir(new_cropped_path))
-  return f"Right now, there are : {nbr_newts} different newts in this area that were 'photo-captured'", f"Regrouping completed"
+  return f"Right now, there are : {nbr_newts} different newts in this area that were 'photo-captured'", f"Aggregation completed"
 
 
 @app.callback(Output('nbr_newts', 'children'),
