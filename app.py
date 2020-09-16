@@ -115,7 +115,7 @@ html.Hr(),
 
 html.Div([
     html.H4("You can select here areas geographically near one another"),
-    html.H5("This will create a new 'meta-area', and compare every newt of present in the areas selected")
+    html.H5("This will create a new 'meta-area', and compare every newt present in the selected areas")
 ]),
 
 

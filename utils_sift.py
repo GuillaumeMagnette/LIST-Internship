@@ -533,8 +533,12 @@ def compareTwoNewts(dir_path1,dir_path2,nbr_comparisons):
         th2 = cv2.adaptiveThreshold(img2,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
               cv2.THRESH_BINARY,11,2)
       
-        kp1, des1 = pysift.computeKeypointsAndDescriptors(th1)
-        kp2, des2 = pysift.computeKeypointsAndDescriptors(th2)
+        #kp1, des1 = pysift.computeKeypointsAndDescriptors(th1)
+        #kp2, des2 = pysift.computeKeypointsAndDescriptors(th2)
+        sift = cv2.xfeatures2d.SIFT_create()
+
+        kp1, des1 = sift.detectAndCompute(th1,None)
+        kp2, des2 = sift.detectAndCompute(th2,None)
 
         # Initialize and use FLANN
         FLANN_INDEX_KDTREE = 0
@@ -546,7 +550,7 @@ def compareTwoNewts(dir_path1,dir_path2,nbr_comparisons):
         # Lowe's ratio test
         good = []
         for m, n in matches:
-          if m.distance < 0.7 * n.distance:
+          if m.distance < 0.72 * n.distance:
             good.append(m)
         goods.append(len(good))
       
@@ -576,7 +580,7 @@ def regroupSameNewtsInit(cropped_path):
       if (j > i):
         img_path1 = cropped_path + '/' + class_path1
         img_path2 = cropped_path + '/' + class_path2
-        if compareTwoNewts(img_path1,img_path2,3):
+        if compareTwoNewts(img_path1,img_path2,20):
           same_newts_ids.append((i,j))
         else:
           diff_newts_ids.append((i,j))
@@ -620,7 +624,7 @@ def regroupSimilarAreas(new_cropped_path):
       if(j > i):
         img_path1 = new_cropped_path + '/' + class_path1
         img_path2 = new_cropped_path + '/' + class_path2
-        if compareTwoNewts(img_path1,img_path2,3):
+        if compareTwoNewts(img_path1,img_path2,20):
           same_newts_ids.append((i,j))
         else:
           diff_newts_ids.append((i,j))
@@ -665,7 +669,7 @@ def regroupSameNewts(cropped_path,new_cropped_path):
   
       img_path1 = cropped_path + '/' + class_path1
       img_path2 = new_cropped_path + '/' + class_path2
-      if compareTwoNewts(img_path1,img_path2,3):
+      if compareTwoNewts(img_path1,img_path2,20):
         same_newts_ids.append((i,j))
       else:
         diff_newts_ids.append((i,j))
